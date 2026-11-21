@@ -1,64 +1,68 @@
 # Nuevas reglas de negocio
 
+Todas viven en la capa de servicios (`backend/app/services/`). Cuando una regla no se cumple, el servicio lanza `ServiceError(mensaje)` (por defecto `422`) y `create_app` lo convierte en `{"error": "<mensaje>"}`.
+
 ### RN1: No se puede poner una habitación en mantenimiento si este cuenta con reservas posteriores a hoy día
 
-**room_controller.py**: en el metodo de update_room
+**services/room_service.py**: en el método `RoomService.update_room`
 ```python
-    if "status" in data:
-        if data["status"] not in ROOM_STATUSES:
-            return jsonify({"error": f"Estado inválido. Usa: {', '.join(ROOM_STATUSES)}"}), 400
-
-        if data["status"] == "maintenance":
-            active = [r for r in room.reservations
-                      if r.status in ("confirmed", "checked_in") and r.check_out > date.today()]
-            if active:
-                detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
-                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 422
-        room.status = data["status"]
+if "status" in data:
+    self._validate_status(data["status"])
+    # RN1: no pasar a mantenimiento con reservas activas
+    if data["status"] == "maintenance":
+        active = [r for r in self.reservations.list_by_room(room.id, ACTIVE_STATUSES)
+                  if r.check_out > date.today()]
+        if active:
+            detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
+            raise ServiceError(f"La habitación {room.number} tiene reservas activas: {detail}")
+    changes["status"] = data["status"]
 ```
 
 ### RN2: No reducir la capacidad de una habitacion por debajo de lo que se ha reservado
 
-**room_controller.py**: en el metodo de update_room
+**services/room_service.py**: en el método `RoomService.update_room`
 ```python
-over = [r for r in room.reservations
-        if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
-if over:
-    detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
-    return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 422
+if "capacity" in data:
+    capacity = self._parse_capacity(data["capacity"])
+    # RN2: no reducir la capacidad por debajo de lo reservado
+    over = [r for r in self.reservations.list_by_room(room.id, ACTIVE_STATUSES) if r.guests_count > capacity]
+    if over:
+        detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
+        raise ServiceError(f"La capacidad no puede ser menor a las reservas activas: {detail}")
+    changes["capacity"] = capacity
 ```
 
 ### RN3: Check-in fuera de plazo (no-show)
 
-**reservation_controller.py**: en el metodo de check_in_reservation
+**services/reservation_service.py**: en el método `ReservationService.check_in_reservation`
 ```python
 if date.today() >= reservation.check_out:
-    return _error("La reserva ya venció", 422)
+    raise ServiceError("La reserva ya venció")
 ```
 
 ### RN4: Documento de huésped único
 
-**guest_controller.py**: en el metodo create_guest:
+**services/guest_service.py**: en el método `GuestService.create_guest` (responde `409`, como los demás duplicados)
 ```python
 document = str(data["document"]).strip()
-if Guest.query.filter_by(document=document).first():
-    return jsonify({"error": "Ya existe un huésped con ese documento"}), 409
+if self.guests.find_by_document(document):
+    raise ServiceError("Ya existe un huésped con ese documento", 409)
 
-guest = Guest(full_name=data["full_name"].strip(), email=email, document=document)
+return self.guests.create(full_name=str(data["full_name"]).strip(), email=email, document=document)
 ```
 
 ### RN5: Límites de estadía y anticipación, Al crear una reserva, se rechaza si tiene más de 30 noches o si check_in está a más de 365 días de hoy
 
-Nuevas variables constantes:
+Nuevas variables constantes en **services/reservation_service.py**:
 ```python
 MAX_NIGHTS = 30                                 # estadía máxima por reserva
 MAX_ADVANCE_DAYS = 365                          # anticipación máxima para reservar
 ```
 
-**reservation_controller.py**: en create_reservation:
+**services/reservation_service.py**: en el método `ReservationService.create_reservation`
 ```python
 if (check_out - check_in).days > MAX_NIGHTS:
-    return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 422)
+    raise ServiceError(f"La estadía no puede superar {MAX_NIGHTS} noches")
 if (check_in - date.today()).days > MAX_ADVANCE_DAYS:
-    return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 422)
+    raise ServiceError(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación")
 ```

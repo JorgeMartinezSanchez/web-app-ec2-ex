@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import Blueprint, jsonify, request
 
 from ..models import Room, db
@@ -79,7 +81,14 @@ def update_room(room_id):
     if "status" in data:
         if data["status"] not in ROOM_STATUSES:
             return jsonify({"error": f"Estado inválido. Usa: {', '.join(ROOM_STATUSES)}"}), 400
+        if data["status"] == "maintenance":
+            active = [r for r in room.reservations
+                      if r.status in ("confirmed", "checked_in") and r.check_out > date.today()]
+            if active:
+                detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
+                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 409
         room.status = data["status"]
+
     try:
         if "price_per_night" in data:
             price = float(data["price_per_night"])

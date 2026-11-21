@@ -13,7 +13,7 @@
                       if r.status in ("confirmed", "checked_in") and r.check_out > date.today()]
             if active:
                 detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
-                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 409
+                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 422
         room.status = data["status"]
 ```
 
@@ -25,7 +25,7 @@ over = [r for r in room.reservations
         if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
 if over:
     detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
-    return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 409
+    return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 422
 ```
 
 ### RN3: Check-in fuera de plazo (no-show)
@@ -33,7 +33,7 @@ if over:
 **reservation_controller.py**: en el metodo de check_in_reservation
 ```python
 if date.today() >= reservation.check_out:
-    return _error("La reserva ya venció", 409)
+    return _error("La reserva ya venció", 422)
 ```
 
 ### RN4: Documento de huésped único
@@ -58,7 +58,7 @@ MAX_ADVANCE_DAYS = 365                          # anticipación máxima para res
 **reservation_controller.py**: en create_reservation:
 ```python
 if (check_out - check_in).days > MAX_NIGHTS:
-    return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 400)
+    return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 422)
 if (check_in - date.today()).days > MAX_ADVANCE_DAYS:
-    return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 400)
+    return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 422)
 ```

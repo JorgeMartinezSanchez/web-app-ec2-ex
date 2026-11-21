@@ -22,6 +22,13 @@ def _error(message, status):
     return jsonify({"error": message}), status
 
 
+STATUS_LABELS = {"confirmed": "confirmada", "checked_in": "hospedado", "checked_out": "finalizada", "cancelled": "cancelada"}
+
+
+def _label(reservation):
+    return STATUS_LABELS.get(reservation.status, reservation.status)
+
+
 def _get_reservation_or_404(reservation_id):
     return db.session.get(Reservation, reservation_id)
 
@@ -73,21 +80,21 @@ def create_reservation():
 
     # Habitación en refacción / mantenimiento: no se puede reservar
     if room.status != "available":
-        return _error(f"La habitación {room.number} no está disponible (en mantenimiento)", 409)
+        return _error(f"La habitación {room.number} está en mantenimiento y no se puede reservar", 422)
 
     # Fechas coherentes
     if check_in < date.today():
-        return _error("No se puede reservar para una fecha que ya pasó", 400)
+        return _error("No se puede reservar para una fecha que ya pasó", 422)
     if check_out <= check_in:
-        return _error("check_out debe ser posterior a check_in", 400)
+        return _error("La fecha de salida debe ser posterior a la de ingreso", 422)
     if (check_out - check_in).days > MAX_NIGHTS:
-        return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 400)
+        return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 422)
     if (check_in - date.today()).days > MAX_ADVANCE_DAYS:
-        return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 400)
+        return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 422)
 
     # Capacidad de la habitación
     if guests_count < 1 or guests_count > room.capacity:
-        return _error(f"guests_count debe estar entre 1 y {room.capacity} para la habitación {room.number}", 400)
+        return _error(f"La habitación {room.number} admite entre 1 y {room.capacity} huéspedes", 422)
 
     # Sin doble venta: se solapa si (inicio existente < nueva salida) y (nueva entrada < salida existente)
     overlap = Reservation.query.filter(
@@ -99,7 +106,7 @@ def create_reservation():
     if overlap:
         return _error(
             f"La habitación {room.number} ya está reservada del {overlap.check_in.isoformat()} "
-            f"al {overlap.check_out.isoformat()}", 409)
+            f"al {overlap.check_out.isoformat()}", 422)
 
     # Máximo de reservas activas por huésped
     active_count = Reservation.query.filter(
@@ -107,7 +114,7 @@ def create_reservation():
         Reservation.status.in_(ACTIVE_STATUSES),
     ).count()
     if active_count >= MAX_ACTIVE_RESERVATIONS:
-        return _error(f"El huésped ya tiene {MAX_ACTIVE_RESERVATIONS} reservas activas", 409)
+        return _error(f"El huésped ya tiene {MAX_ACTIVE_RESERVATIONS} reservas activas", 422)
 
     # Total con descuento por estadía larga
     nights = (check_out - check_in).days
@@ -135,7 +142,7 @@ def cancel_reservation(reservation_id):
     if reservation is None:
         return _error("Reserva no encontrada", 404)
     if reservation.status != "confirmed":
-        return _error(f"Solo se pueden cancelar reservas confirmadas (estado actual: {reservation.status})", 409)
+        return _error(f"Solo se pueden cancelar reservas confirmadas (estado actual: {_label(reservation)})", 422)
 
     # Con menos de 48 h para el ingreso se cobra la primera noche; si no, no se cobra nada.
     # total_price pasa a representar lo que efectivamente se cobra.
@@ -156,11 +163,11 @@ def check_in_reservation(reservation_id):
     if reservation is None:
         return _error("Reserva no encontrada", 404)
     if reservation.status != "confirmed":
-        return _error(f"Solo se puede hacer check-in de reservas confirmadas (estado actual: {reservation.status})", 409)
+        return _error(f"Solo se puede hacer check-in de reservas confirmadas (estado actual: {_label(reservation)})", 422)
     if date.today() < reservation.check_in:
-        return _error(f"No se puede hacer check-in antes del {reservation.check_in.isoformat()}", 409)
+        return _error(f"No se puede hacer check-in antes del {reservation.check_in.isoformat()}", 422)
     if date.today() >= reservation.check_out:
-        return _error("La reserva ya venció", 409)
+        return _error("La reserva ya venció", 422)
 
     reservation.status = "checked_in"
     db.session.commit()
@@ -173,7 +180,7 @@ def check_out_reservation(reservation_id):
     if reservation is None:
         return _error("Reserva no encontrada", 404)
     if reservation.status != "checked_in":
-        return _error(f"Solo se puede hacer check-out de huéspedes con check-in (estado actual: {reservation.status})", 409)
+        return _error(f"Solo se puede hacer check-out de huéspedes con check-in (estado actual: {_label(reservation)})", 422)
 
     reservation.status = "checked_out"
     db.session.commit()

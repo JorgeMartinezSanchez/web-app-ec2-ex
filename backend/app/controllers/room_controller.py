@@ -86,7 +86,7 @@ def update_room(room_id):
                       if r.status in ("confirmed", "checked_in") and r.check_out > date.today()]
             if active:
                 detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
-                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 409
+                return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 422
         room.status = data["status"]
 
     try:
@@ -103,7 +103,7 @@ def update_room(room_id):
                     if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
             if over:
                 detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
-                return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 409
+                return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 422
             room.capacity = capacity
     except (TypeError, ValueError):
         return jsonify({"error": "price_per_night y capacity deben ser números"}), 400

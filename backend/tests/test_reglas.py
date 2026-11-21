@@ -36,31 +36,31 @@ def fake_today(monkeypatch, days):
 def test_r1_sin_doble_reserva(reserve):
     assert reserve(10, 13).status_code == 201
     res = reserve(12, 15)
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert "ya está reservada" in res.get_json()["error"]
     assert reserve(13, 15).status_code == 201  # empezar el día de salida de otra sí se puede
 
 
 def test_r2_salida_posterior_al_ingreso(reserve):
-    assert reserve(10, 8).status_code == 400
-    assert reserve(10, 10).status_code == 400
+    assert reserve(10, 8).status_code == 422
+    assert reserve(10, 10).status_code == 422
 
 
 def test_r3_sin_fechas_pasadas(reserve):
     res = reserve(-1, 2)
-    assert res.status_code == 400
+    assert res.status_code == 422
     assert "ya pasó" in res.get_json()["error"]
 
 
 def test_r4_capacidad_de_la_habitacion(reserve):
-    assert reserve(10, 12, guests_count=3).status_code == 400
-    assert reserve(10, 12, guests_count=0).status_code == 400
+    assert reserve(10, 12, guests_count=3).status_code == 422
+    assert reserve(10, 12, guests_count=0).status_code == 422
 
 
 def test_r5_habitacion_en_mantenimiento(client, room, reserve):
     client.put(f"/api/rooms/{room['id']}", json={"status": "maintenance"})
     res = reserve(10, 12)
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert "mantenimiento" in res.get_json()["error"]
 
 
@@ -78,16 +78,16 @@ def test_r7_cobro_por_cancelacion_tardia(client, reserve):
 
 def test_r8_transiciones_de_estado_validas(client, reserve):
     rid = reserve(0, 2).get_json()["id"]
-    assert client.patch(f"/api/reservations/{rid}/check-out").status_code == 409  # sin check-in
+    assert client.patch(f"/api/reservations/{rid}/check-out").status_code == 422  # sin check-in
     client.patch(f"/api/reservations/{rid}/cancel")
-    assert client.patch(f"/api/reservations/{rid}/check-in").status_code == 409   # cancelada
-    assert client.patch(f"/api/reservations/{rid}/cancel").status_code == 409     # ya cancelada
+    assert client.patch(f"/api/reservations/{rid}/check-in").status_code == 422   # cancelada
+    assert client.patch(f"/api/reservations/{rid}/cancel").status_code == 422     # ya cancelada
 
 
 def test_r9_check_in_no_anticipado(client, reserve):
     rid = reserve(2, 4).get_json()["id"]
     res = client.patch(f"/api/reservations/{rid}/check-in")
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert "antes del" in res.get_json()["error"]
 
 
@@ -95,7 +95,7 @@ def test_r10_maximo_tres_reservas_activas(reserve):
     for i in range(3):
         assert reserve(10 + i * 2, 11 + i * 2).status_code == 201
     res = reserve(30, 31)
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert "3 reservas activas" in res.get_json()["error"]
 
 
@@ -104,7 +104,7 @@ def test_r10_maximo_tres_reservas_activas(reserve):
 def test_rn1_mantenimiento_sin_reservas_activas(client, room, reserve):
     rid = reserve(10, 12).get_json()["id"]
     res = client.put(f"/api/rooms/{room['id']}", json={"status": "maintenance"})
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert f"#{rid}" in res.get_json()["error"]
     client.patch(f"/api/reservations/{rid}/cancel")
     assert client.put(f"/api/rooms/{room['id']}", json={"status": "maintenance"}).status_code == 200
@@ -112,7 +112,7 @@ def test_rn1_mantenimiento_sin_reservas_activas(client, room, reserve):
 
 def test_rn2_no_reducir_capacidad_bajo_lo_reservado(client, room, reserve):
     reserve(10, 12, guests_count=2)
-    assert client.put(f"/api/rooms/{room['id']}", json={"capacity": 1}).status_code == 409
+    assert client.put(f"/api/rooms/{room['id']}", json={"capacity": 1}).status_code == 422
     assert client.put(f"/api/rooms/{room['id']}", json={"capacity": 3}).status_code == 200
 
 
@@ -120,7 +120,7 @@ def test_rn3_check_in_fuera_de_plazo(client, reserve, monkeypatch):
     rid = reserve(0, 2).get_json()["id"]
     fake_today(monkeypatch, 2)  # hoy = día de check_out
     res = client.patch(f"/api/reservations/{rid}/check-in")
-    assert res.status_code == 409
+    assert res.status_code == 422
     assert res.get_json()["error"] == "La reserva ya venció"
 
 
@@ -131,6 +131,6 @@ def test_rn4_documento_de_huesped_unico(client, guest):
 
 
 def test_rn5_limites_de_estadia_y_anticipacion(reserve):
-    assert reserve(1, 32).status_code == 400      # 31 noches
-    assert reserve(366, 367).status_code == 400   # 366 días de anticipación
+    assert reserve(1, 32).status_code == 422      # 31 noches
+    assert reserve(366, 367).status_code == 422   # 366 días de anticipación
     assert reserve(1, 31).status_code == 201      # 30 noches: límite permitido

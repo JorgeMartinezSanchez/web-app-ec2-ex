@@ -14,18 +14,23 @@ function esc(value) {
 function showMessage(text, isError) {
   const msg = document.getElementById("msg");
   msg.textContent = text;
-  msg.className = isError ? "msg error" : "msg";
+  msg.className = isError ? "message message--error" : "message";
   msg.hidden = false;
   clearTimeout(showMessage.timer);
   showMessage.timer = setTimeout(() => { msg.hidden = true; }, 4000);
 }
 
+// Modificador BEM del badge: "checked_in" -> "badge--checked-in"
+function badgeModifier(status) {
+  return "badge--" + String(status).replace(/_/g, "-");
+}
+
 // ---------- pestañas ----------
-document.querySelectorAll(".tabs button").forEach((button) => {
+document.querySelectorAll(".tabs__button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelectorAll(".tab").forEach((tab) => { tab.hidden = true; });
+    document.querySelectorAll(".tabs__button").forEach((b) => b.classList.remove("tabs__button--active"));
+    button.classList.add("tabs__button--active");
+    document.querySelectorAll("[data-tab-panel]").forEach((tab) => { tab.hidden = true; });
     document.getElementById("tab-" + button.dataset.tab).hidden = false;
   });
 });
@@ -36,20 +41,20 @@ async function loadRooms() {
     const rooms = await api.listRooms();
     const body = document.getElementById("rooms-body");
     if (rooms.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">No hay habitaciones</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="table__cell table__cell--empty">No hay habitaciones</td></tr>';
     } else {
       body.innerHTML = rooms.map((r) => `
         <tr>
-          <td>${esc(r.number)}</td>
-          <td>${esc(ROOM_TYPES[r.type] || r.type)}</td>
-          <td>Bs ${esc(r.price_per_night)}</td>
-          <td>${esc(r.capacity)}</td>
-          <td><span class="badge ${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
-          <td>
-            <button class="btn btn-small btn-gray" onclick="toggleMaintenance(${r.id}, '${esc(r.status)}')">
+          <td class="table__cell">${esc(r.number)}</td>
+          <td class="table__cell">${esc(ROOM_TYPES[r.type] || r.type)}</td>
+          <td class="table__cell">Bs ${esc(r.price_per_night)}</td>
+          <td class="table__cell">${esc(r.capacity)}</td>
+          <td class="table__cell"><span class="badge ${badgeModifier(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
+          <td class="table__cell">
+            <button class="button button--small button--muted" onclick="toggleMaintenance(${r.id}, '${esc(r.status)}')">
               ${r.status === "maintenance" ? "Habilitar" : "Mantenimiento"}
             </button>
-            <button class="btn btn-small btn-red" onclick="deleteRoom(${r.id})">Eliminar</button>
+            <button class="button button--small button--danger" onclick="deleteRoom(${r.id})">Eliminar</button>
           </td>
         </tr>`).join("");
     }
@@ -105,14 +110,14 @@ async function loadGuests() {
     const guests = await api.listGuests();
     const body = document.getElementById("guests-body");
     if (guests.length === 0) {
-      body.innerHTML = '<tr><td colspan="4" class="empty">No hay huéspedes</td></tr>';
+      body.innerHTML = '<tr><td colspan="4" class="table__cell table__cell--empty">No hay huéspedes</td></tr>';
     } else {
       body.innerHTML = guests.map((g) => `
         <tr>
-          <td>${esc(g.full_name)}</td>
-          <td>${esc(g.email)}</td>
-          <td>${esc(g.document)}</td>
-          <td><button class="btn btn-small btn-red" onclick="deleteGuest(${g.id})">Eliminar</button></td>
+          <td class="table__cell">${esc(g.full_name)}</td>
+          <td class="table__cell">${esc(g.email)}</td>
+          <td class="table__cell">${esc(g.document)}</td>
+          <td class="table__cell"><button class="button button--small button--danger" onclick="deleteGuest(${g.id})">Eliminar</button></td>
         </tr>`).join("");
     }
     document.getElementById("reservation-guest").innerHTML = guests
@@ -156,24 +161,24 @@ async function loadReservations() {
     const reservations = await api.listReservations(status);
     const body = document.getElementById("reservations-body");
     if (reservations.length === 0) {
-      body.innerHTML = '<tr><td colspan="10" class="empty">No hay reservas</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="table__cell table__cell--empty">No hay reservas</td></tr>';
       return;
     }
     body.innerHTML = reservations.map((r) => `
       <tr>
-        <td>${r.id}</td>
-        <td>${esc(r.room_number)}</td>
-        <td>${esc(r.guest_name)}</td>
-        <td>${esc(r.check_in)}</td>
-        <td>${esc(r.check_out)}</td>
-        <td>${esc(r.nights)}</td>
-        <td>${esc(r.guests_count)}</td>
-        <td>${esc(r.total_price)}</td>
-        <td><span class="badge ${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
-        <td>
-          <button class="btn btn-small btn-green" onclick="changeReservation(${r.id}, 'check-in')">Check-in</button>
-          <button class="btn btn-small" onclick="changeReservation(${r.id}, 'check-out')">Check-out</button>
-          <button class="btn btn-small btn-red" onclick="changeReservation(${r.id}, 'cancel')">Cancelar</button>
+        <td class="table__cell">${r.id}</td>
+        <td class="table__cell">${esc(r.room_number)}</td>
+        <td class="table__cell">${esc(r.guest_name)}</td>
+        <td class="table__cell">${esc(r.check_in)}</td>
+        <td class="table__cell">${esc(r.check_out)}</td>
+        <td class="table__cell">${esc(r.nights)}</td>
+        <td class="table__cell">${esc(r.guests_count)}</td>
+        <td class="table__cell">${esc(r.total_price)}</td>
+        <td class="table__cell"><span class="badge ${badgeModifier(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
+        <td class="table__cell">
+          <button class="button button--small button--success" onclick="changeReservation(${r.id}, 'check-in')">Check-in</button>
+          <button class="button button--small" onclick="changeReservation(${r.id}, 'check-out')">Check-out</button>
+          <button class="button button--small button--danger" onclick="changeReservation(${r.id}, 'cancel')">Cancelar</button>
         </td>
       </tr>`).join("");
   } catch (error) {

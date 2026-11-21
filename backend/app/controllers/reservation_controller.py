@@ -14,6 +14,8 @@ MAX_ACTIVE_RESERVATIONS = 3                     # máximo de reservas activas po
 LONG_STAY_NIGHTS = 7                            # una semana completa o más...
 LONG_STAY_DISCOUNT = 0.10                       # ...10 % de descuento sobre el total
 LATE_CANCEL_HOURS = 48                          # cancelar con menos de 48 h cobra la primera noche
+MAX_NIGHTS = 30                                 # estadía máxima por reserva
+MAX_ADVANCE_DAYS = 365                          # anticipación máxima para reservar
 
 
 def _error(message, status):
@@ -78,6 +80,10 @@ def create_reservation():
         return _error("No se puede reservar para una fecha que ya pasó", 400)
     if check_out <= check_in:
         return _error("check_out debe ser posterior a check_in", 400)
+    if (check_out - check_in).days > MAX_NIGHTS:
+        return _error(f"La estadía no puede superar {MAX_NIGHTS} noches", 400)
+    if (check_in - date.today()).days > MAX_ADVANCE_DAYS:
+        return _error(f"No se puede reservar con más de {MAX_ADVANCE_DAYS} días de anticipación", 400)
 
     # Capacidad de la habitación
     if guests_count < 1 or guests_count > room.capacity:

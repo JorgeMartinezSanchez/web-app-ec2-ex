@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
-import app.controllers.reservation_controller as reservation_controller
+import app.services.reservation_service as reservation_service
 
 TODAY = date.today()
 
@@ -23,12 +23,12 @@ def reserve(client, room, guest):
 
 
 def fake_today(monkeypatch, days):
-    """Hace que el controlador de reservas crea que hoy es TODAY + days."""
+    """Hace que el servicio de reservas crea que hoy es TODAY + days."""
     class FakeDate(date):
         @classmethod
         def today(cls):
             return TODAY + timedelta(days=days)
-    monkeypatch.setattr(reservation_controller, "date", FakeDate)
+    monkeypatch.setattr(reservation_service, "date", FakeDate)
 
 
 # ---------- REGLAS.md ----------

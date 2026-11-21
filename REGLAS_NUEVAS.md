@@ -1,6 +1,6 @@
 # RN1: No se puede poner una habitación en mantenimiento si este cuenta con reservas posteriores a hoy día
 
-**room_controller.py**: en el metodo de update_room.py
+**room_controller.py**: en el metodo de update_room
 ```python
     if "status" in data:
         if data["status"] not in ROOM_STATUSES:
@@ -17,10 +17,19 @@
 
 # RN2: No reducir la capacidad de una habitacion por debajo de lo que se ha reservado
 
+**room_controller.py**: en el metodo de update_room
 ```python
 over = [r for r in room.reservations
         if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
 if over:
     detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
     return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 409
+```
+
+# RN3: Check-in fuera de plazo (no-show)
+
+**reservation_controller.py**: en el metodo de check_in_reservation
+```python
+if date.today() >= reservation.check_out:
+    return _error("La reserva ya venció", 409)
 ```

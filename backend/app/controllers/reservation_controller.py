@@ -153,6 +153,8 @@ def check_in_reservation(reservation_id):
         return _error(f"Solo se puede hacer check-in de reservas confirmadas (estado actual: {reservation.status})", 409)
     if date.today() < reservation.check_in:
         return _error(f"No se puede hacer check-in antes del {reservation.check_in.isoformat()}", 409)
+    if date.today() >= reservation.check_out:
+        return _error("La reserva ya venció", 409)
 
     reservation.status = "checked_in"
     db.session.commit()

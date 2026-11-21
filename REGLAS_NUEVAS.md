@@ -5,7 +5,7 @@
     if "status" in data:
         if data["status"] not in ROOM_STATUSES:
             return jsonify({"error": f"Estado inválido. Usa: {', '.join(ROOM_STATUSES)}"}), 400
-            
+
         if data["status"] == "maintenance":
             active = [r for r in room.reservations
                       if r.status in ("confirmed", "checked_in") and r.check_out > date.today()]
@@ -14,3 +14,4 @@
                 return jsonify({"error": f"La habitación {room.number} tiene reservas activas: {detail}"}), 409
         room.status = data["status"]
 ```
+

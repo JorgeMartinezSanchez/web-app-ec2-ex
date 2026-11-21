@@ -1,5 +1,6 @@
 from datetime import date
 
+from ..repository.reservation_repository import ReservationRepository
 from ..repository.room_repository import RoomRepository
 from . import ServiceError
 
@@ -11,6 +12,7 @@ ACTIVE_STATUSES = ("confirmed", "checked_in")
 class RoomService:
     def __init__(self):
         self.rooms = RoomRepository()
+        self.reservations = ReservationRepository()
 
     def list_rooms(self, status=None):
         return self.rooms.list_ordered(status)
@@ -75,8 +77,8 @@ class RoomService:
             self._validate_status(data["status"])
             # RN1: no pasar a mantenimiento con reservas activas
             if data["status"] == "maintenance":
-                active = [r for r in room.reservations
-                          if r.status in ACTIVE_STATUSES and r.check_out > date.today()]
+                active = [r for r in self.reservations.list_by_room(room.id, ACTIVE_STATUSES)
+                          if r.check_out > date.today()]
                 if active:
                     detail = ", ".join(f"#{r.id} ({r.check_in} a {r.check_out})" for r in active)
                     raise ServiceError(f"La habitación {room.number} tiene reservas activas: {detail}")
@@ -88,7 +90,7 @@ class RoomService:
         if "capacity" in data:
             capacity = self._parse_capacity(data["capacity"])
             # RN2: no reducir la capacidad por debajo de lo reservado
-            over = [r for r in room.reservations if r.status in ACTIVE_STATUSES and r.guests_count > capacity]
+            over = [r for r in self.reservations.list_by_room(room.id, ACTIVE_STATUSES) if r.guests_count > capacity]
             if over:
                 detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
                 raise ServiceError(f"La capacidad no puede ser menor a las reservas activas: {detail}")
@@ -98,6 +100,6 @@ class RoomService:
 
     def delete_room(self, room_id):
         room = self.get_room(room_id)
-        if room.reservations:
+        if self.reservations.list_by_room(room.id):
             raise ServiceError("La habitación tiene reservas registradas", 409)
         self.rooms.delete(room)

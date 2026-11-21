@@ -1,17 +1,11 @@
-# Los controladores solo reciben la petición, llaman al servicio y devuelven la vista (JSON).
+# Capa de rutas: recibe la petición HTTP, llama al servicio y serializa la respuesta (JSON).
 from flask import Blueprint, jsonify, request
 
-from ..services import ServiceError
 from ..services.room_service import RoomService
 from ..views.room_view import room_to_dict, rooms_to_list
 
 room_bp = Blueprint("rooms", __name__, url_prefix="/api/rooms")
 room_service = RoomService()
-
-
-@room_bp.errorhandler(ServiceError)
-def handle_service_error(error):
-    return jsonify({"error": error.message}), error.status
 
 
 @room_bp.get("")

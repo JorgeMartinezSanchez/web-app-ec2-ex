@@ -104,7 +104,8 @@ class ReservationService:
 
         # R7: con menos de 48 h para el ingreso se cobra la primera noche; si no, no se cobra nada.
         hours_left = (datetime.combine(reservation.check_in, time.min) - datetime.now()) / timedelta(hours=1)
-        charge = reservation.room.price_per_night if hours_left < LATE_CANCEL_HOURS else 0
+        room = self.rooms.get_by_id(reservation.room_id)
+        charge = room.price_per_night if hours_left < LATE_CANCEL_HOURS else 0
         return self.reservations.update(reservation, status="cancelled", total_price=charge)
 
     def check_in_reservation(self, reservation_id):

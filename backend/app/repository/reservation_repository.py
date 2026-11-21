@@ -22,8 +22,14 @@ class ReservationRepository(Repository):
             Reservation.check_out > check_in,
         ).first()
 
-    def count_by_guest(self, guest_id, statuses):
-        return Reservation.query.filter(
-            Reservation.guest_id == guest_id,
-            Reservation.status.in_(statuses),
-        ).count()
+    def list_by_room(self, room_id, statuses=None):
+        query = Reservation.query.filter(Reservation.room_id == room_id)
+        if statuses:
+            query = query.filter(Reservation.status.in_(statuses))
+        return query.all()
+
+    def count_by_guest(self, guest_id, statuses=None):
+        query = Reservation.query.filter(Reservation.guest_id == guest_id)
+        if statuses:
+            query = query.filter(Reservation.status.in_(statuses))
+        return query.count()

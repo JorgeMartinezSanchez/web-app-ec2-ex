@@ -33,3 +33,14 @@ if over:
 if date.today() >= reservation.check_out:
     return _error("La reserva ya venció", 409)
 ```
+
+# RN4: Documento de huésped único
+
+**guest_controller.py**: en el metodo create_guest:
+```python
+document = str(data["document"]).strip()
+if Guest.query.filter_by(document=document).first():
+    return jsonify({"error": "Ya existe un huésped con ese documento"}), 409
+
+guest = Guest(full_name=data["full_name"].strip(), email=email, document=document)
+```

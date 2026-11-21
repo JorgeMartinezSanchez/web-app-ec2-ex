@@ -34,7 +34,11 @@ def create_guest():
     if Guest.query.filter_by(email=email).first():
         return jsonify({"error": "Ya existe un huésped con ese email"}), 409
 
-    guest = Guest(full_name=data["full_name"].strip(), email=email, document=str(data["document"]).strip())
+    document = str(data["document"]).strip()
+    if Guest.query.filter_by(document=document).first():
+        return jsonify({"error": "Ya existe un huésped con ese documento"}), 409
+
+    guest = Guest(full_name=data["full_name"].strip(), email=email, document=document)
     db.session.add(guest)
     db.session.commit()
     return jsonify(guest_to_dict(guest)), 201

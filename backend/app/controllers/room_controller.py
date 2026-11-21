@@ -42,6 +42,12 @@ def create_room():
         capacity = int(data["capacity"])
     except (TypeError, ValueError):
         return jsonify({"error": "price_per_night y capacity deben ser números"}), 400
+    if price <= 0 or capacity < 1:
+        return jsonify({"error": "price_per_night debe ser > 0 y capacity >= 1"}), 400
+
+    status = data.get("status", "available")
+    if status not in ROOM_STATUSES:
+        return jsonify({"error": f"Estado inválido. Usa: {', '.join(ROOM_STATUSES)}"}), 400
 
     number = str(data["number"]).strip()
     if Room.query.filter_by(number=number).first():
@@ -52,7 +58,7 @@ def create_room():
         type=data["type"],
         price_per_night=price,
         capacity=capacity,
-        status=data.get("status", "available"),
+        status=status,
     )
     db.session.add(room)
     db.session.commit()
@@ -76,9 +82,15 @@ def update_room(room_id):
         room.status = data["status"]
     try:
         if "price_per_night" in data:
-            room.price_per_night = float(data["price_per_night"])
+            price = float(data["price_per_night"])
+            if price <= 0:
+                return jsonify({"error": "price_per_night debe ser > 0"}), 400
+            room.price_per_night = price
         if "capacity" in data:
-            room.capacity = int(data["capacity"])
+            capacity = int(data["capacity"])
+            if capacity < 1:
+                return jsonify({"error": "capacity debe ser >= 1"}), 400
+            room.capacity = capacity
     except (TypeError, ValueError):
         return jsonify({"error": "price_per_night y capacity deben ser números"}), 400
 

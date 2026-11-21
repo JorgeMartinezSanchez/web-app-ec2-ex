@@ -1,44 +1,43 @@
-### `backend/app/controllers/reservation_controller.py`
+# Reglas de negocio — Hotel Mirador
 
-Agregué constantes para las reglas de negocio al inicio del archivo:
-```python
-ACTIVE_STATUSES = ("confirmed", "checked_in")
-MAX_ACTIVE_RESERVATIONS = 3
-LONG_STAY_NIGHTS = 7
-LONG_STAY_DISCOUNT = 0.10
-LATE_CANCEL_HOURS = 48
-```
+Todas las respuestas de error tienen el formato `{"error": "<mensaje>"}`.
 
-**Crear reserva (`POST /api/reservations`)**
-1. **Habitación en mantenimiento (la 203):** si `room.status != "available"` se rechaza con 409.
-2. **Fecha pasada:** si `check_in < date.today()` se rechaza con 400.
-3. **Salida antes del ingreso (el total negativo):** si `check_out <= check_in` se rechaza con 400.
-4. **Capacidad (la 101 para cinco personas):** `guests_count` tiene que estar entre 1 y `room.capacity`. Si no, 400.
-5. **Doble venta (la 202 en carnaval):** se rechaza con 409 si la habitación ya tiene otra reserva `confirmed` o `checked_in` con fechas que se solapan:
-   ```python
-   Reservation.check_in < check_out and Reservation.check_out > check_in
-   ```
-6. **Máximo 3 reservas activas por huésped:** si ya tiene 3 reservas `confirmed` o `checked_in`, se rechaza con 409.
-7. **10 % de descuento por 7 noches o más:** el total se multiplica por 0.9 y se redondea a 2 decimales.
-8. Saqué el `try/except Exception` general y el `finally: db.session.close()`. Ahora cada error devuelve su propio mensaje y código.
+## R1. Sin doble reserva
+**Regla:** Al crear una reserva (`POST /api/reservations`), se rechaza si la misma habitación ya tiene otra reserva en estado `confirmed` o `checked_in` cuyo rango de fechas se solapa con el nuevo (`check_in` existente < `check_out` nuevo y `check_out` existente > `check_in` nuevo).
+**Si no se cumple:** `409 Conflict` — `"La habitación <número> ya está reservada del <AAAA-MM-DD> al <AAAA-MM-DD>"`.
 
-**Cancelar (`PATCH /cancel`)**
-- Solo se pueden cancelar reservas `confirmed`. Si no, 409.
-- Si faltan **menos de 48 h** para el ingreso (contando desde las 00:00 del día de check-in), `total_price` pasa a ser el precio de **una noche**. Si se avisa con más tiempo, `total_price = 0`. Desde ahora, en una reserva cancelada, `total_price` es lo que realmente se cobra.
+## R2. Salida posterior al ingreso
+**Regla:** Al crear una reserva, `check_out` debe ser estrictamente posterior a `check_in` (mínimo una noche).
+**Si no se cumple:** `400 Bad Request` — `"check_out debe ser posterior a check_in"`.
 
-**Check-in (`PATCH /check-in`)**
-- Solo se puede hacer con reservas `confirmed`, así una cancelada ya no puede pasar a hospedada. Si no, 409.
-- No se puede hacer antes de la fecha de `check_in`. Si no, 409.
+## R3. Sin fechas pasadas
+**Regla:** Al crear una reserva, `check_in` debe ser igual o posterior a la fecha actual del servidor.
+**Si no se cumple:** `400 Bad Request` — `"No se puede reservar para una fecha que ya pasó"`.
 
-**Check-out (`PATCH /check-out`)**
-- Solo se puede hacer con reservas `checked_in`, así nadie hace check-out sin haber hecho check-in. Si no, 409.
+## R4. Capacidad de la habitación
+**Regla:** Al crear una reserva, `guests_count` debe estar entre 1 y el `capacity` de la habitación solicitada.
+**Si no se cumple:** `400 Bad Request` — `"guests_count debe estar entre 1 y <capacidad> para la habitación <número>"`.
 
-### `backend/app/controllers/room_controller.py`
-- **Crear habitación:** `price_per_night` tiene que ser mayor a 0 y `capacity` al menos 1. Además, `status` se valida contra `ROOM_STATUSES` (antes se aceptaba cualquier texto).
-- **Editar habitación (`PUT`):** las mismas validaciones de precio mayor a 0 y capacidad de al menos 1.
+## R5. Habitación en mantenimiento
+**Regla:** Al crear una reserva, la habitación debe tener `status = "available"`; una habitación en `maintenance` no se puede reservar.
+**Si no se cumple:** `409 Conflict` — `"La habitación <número> no está disponible (en mantenimiento)"`.
 
-### Verificación
-- Los 9 tests que ya había siguen pasando.
-- Probé cada regla con un script aparte y todas responden con el código esperado: doble venta, fechas invertidas, fecha pasada, capacidad, mantenimiento, descuento (7 noches a 100 = 630), tope de 3 reservas, check-in adelantado, check-out sin check-in, check-in de una reserva cancelada, y cancelación con tiempo (0) y con menos de 48 h (100).
+## R6. Descuento por estadía larga
+**Regla:** Al crear una reserva, si la cantidad de noches (`check_out − check_in`) es 7 o más, `total_price` se calcula como `noches × price_per_night × 0.90`; en otro caso, `noches × price_per_night`.
+**Si no se cumple:** no aplica (es un cálculo); la reserva se crea con `201 Created` y el `total_price` ya descontado.
 
-**Observación:** todavía no agregué estos casos como tests en `tests/test_api.py`. Te convendría sumarlos.
+## R7. Cobro por cancelación tardía
+**Regla:** Al cancelar una reserva (`PATCH /api/reservations/<id>/cancel`), si faltan menos de 48 horas para las 00:00 del día de `check_in`, `total_price` pasa a ser el precio de una noche (`price_per_night`); si faltan 48 horas o más, `total_price` pasa a ser 0.
+**Si no se cumple:** no aplica (es un cálculo); responde `200 OK` con la reserva en estado `cancelled` y el monto cobrado en `total_price`.
+
+## R8. Transiciones de estado válidas
+**Regla:** El estado de una reserva solo puede cambiar así: `confirmed → checked_in` (check-in), `checked_in → checked_out` (check-out) y `confirmed → cancelled` (cancelación); cualquier otra transición se rechaza.
+**Si no se cumple:** `409 Conflict` — p. ej. `"Solo se puede hacer check-out de huéspedes con check-in (estado actual: <estado>)"`.
+
+## R9. Check-in no anticipado
+**Regla:** Al hacer check-in (`PATCH /api/reservations/<id>/check-in`), la fecha actual del servidor debe ser igual o posterior a `check_in` de la reserva.
+**Si no se cumple:** `409 Conflict` — `"No se puede hacer check-in antes del <AAAA-MM-DD>"`.
+
+## R10. Máximo de reservas activas por huésped
+**Regla:** Al crear una reserva, el huésped no puede tener ya 3 o más reservas en estado `confirmed` o `checked_in`.
+**Si no se cumple:** `409 Conflict` — `"El huésped ya tiene 3 reservas activas"`.

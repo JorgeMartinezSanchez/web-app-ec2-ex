@@ -99,6 +99,11 @@ def update_room(room_id):
             capacity = int(data["capacity"])
             if capacity < 1:
                 return jsonify({"error": "capacity debe ser >= 1"}), 400
+            over = [r for r in room.reservations
+                    if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
+            if over:
+                detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
+                return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 409
             room.capacity = capacity
     except (TypeError, ValueError):
         return jsonify({"error": "price_per_night y capacity deben ser números"}), 400

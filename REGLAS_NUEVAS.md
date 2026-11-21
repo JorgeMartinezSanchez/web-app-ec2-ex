@@ -1,4 +1,4 @@
-# R1: No se puede poner una habitación en mantenimiento si este cuenta con reservas posteriores a hoy día
+# RN1: No se puede poner una habitación en mantenimiento si este cuenta con reservas posteriores a hoy día
 
 **room_controller.py**: en el metodo de update_room.py
 ```python
@@ -15,3 +15,12 @@
         room.status = data["status"]
 ```
 
+# RN2: No reducir la capacidad de una habitacion por debajo de lo que se ha reservado
+
+```python
+over = [r for r in room.reservations
+        if r.status in ("confirmed", "checked_in") and r.guests_count > capacity]
+if over:
+    detail = ", ".join(f"#{r.id} ({r.guests_count} huéspedes)" for r in over)
+    return jsonify({"error": f"La capacidad no puede ser menor a las reservas activas: {detail}"}), 409
+```
